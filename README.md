@@ -218,7 +218,7 @@ their trust.
 |---|---|
 | HR agent and platform backend | Ghous |
 | Data Analyst engine | Areeb |
-| Manager, Research agent, integration | Mahmood |
+| Manager, Research agent, integration, Frontend, submission | Mahmood |
 | Frontend | Musab |
 
 Interfaces were agreed before implementation started: every agent exposes
