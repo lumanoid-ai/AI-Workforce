@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+.env
+data/*.db
+!data/hr.db
+data/chroma/
+data/uploads/*
+data/resumes/*
+data/ics/*
+!data/*/.gitkeep
+data/hr.db 
