@@ -4,6 +4,7 @@ from app.core.events import emit
 from app.core.llm import llm_text
 from app.database import db_session
 from app.models import Task
+from app.core.language import language_instruction
 
 MANAGER_SYSTEM_PROMPT = """You are the Manager of an AI workforce with three specialists:
 - HR: job descriptions, resume screening, scoring, interviews, onboarding, policy
@@ -12,7 +13,8 @@ MANAGER_SYSTEM_PROMPT = """You are the Manager of an AI workforce with three spe
 
 You never do specialist work yourself. You split the user's request into
 delegations, then combine the specialists' summaries into one answer for the user.
-Be concrete. Under 150 words."""
+Be concrete. Under 150 words, Never write, shorten, or modify a URL. If a specialist returned links, copy
+them character-for-character or leave them out. A link you alter will not work.."""
 
 
 def delegate(agent: str, instruction: str, task_id: str | None = None, **ctx) -> dict:
@@ -33,7 +35,8 @@ manager_agent = BaseAgent(
 )
 
 
-def run_task(instruction: str, workspace_id: str | None = None) -> dict:
+def run_task(instruction: str, workspace_id: str | None = None,
+             language:str = "en") -> dict:
     """Entry point: user -> Manager -> specialists -> user."""
     db = db_session()
     try:
@@ -45,14 +48,17 @@ def run_task(instruction: str, workspace_id: str | None = None) -> dict:
     finally:
         db.close()
 
-    result = manager_agent.run(instruction, context={"workspace_id": workspace_id},
-                               task_id=task_id)
+    result = manager_agent.run(
+        instruction,
+        context={"workspace_id": workspace_id, "language": language},
+        task_id=task_id)
 
     final = llm_text(
         f"User asked: {instruction}\n\nSpecialist summaries:\n"
         f"{[r.get('result', {}).get('summary') for r in result['results']]}\n\n"
         "Write the final answer for the user.",
-        system=MANAGER_SYSTEM_PROMPT, temperature=0.4,
+        system=MANAGER_SYSTEM_PROMPT + language_instruction(language),
+        temperature=0.4,
     ) if result["results"] else result["summary"]
 
     db = db_session()

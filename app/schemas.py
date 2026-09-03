@@ -29,6 +29,7 @@ class SlotIn(BaseModel):
 class TaskIn(BaseModel):
     instruction: str
     workspace_id: str | None = None
+    language: str = "en"
 
 
 class OfferIn(BaseModel):

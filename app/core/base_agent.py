@@ -7,6 +7,7 @@ import inspect
 import json
 from dataclasses import dataclass, field
 from typing import Any, Callable
+from app.core.language import language_instruction
 
 from app.core.events import emit
 from app.core.llm import llm_json, llm_text
@@ -53,6 +54,7 @@ class BaseAgent:
         self.system_prompt = system_prompt
         self.tools = {t.name: t for t in tools}
         self.color = color
+        self._language = None
 
     # ---------- planning ----------
     def plan(self, instruction: str, context: dict) -> list[dict]:
@@ -79,6 +81,7 @@ class BaseAgent:
     def run(self, instruction: str, context: dict | None = None,
             task_id: str | None = None) -> dict:
         context = context or {}
+        self._language = context.get("language")
         emit(task_id, self.name, "thinking", f"Instruction mili: {instruction[:120]}")
 
         try:
@@ -113,6 +116,8 @@ class BaseAgent:
 
     # ---------- summary ----------
     def summarise(self, instruction: str, results: list[dict]) -> str:
+        lang = language_instruction(getattr(self, "_language", None))
+
         if not results:
             return "Koi tool chalane ki zaroorat nahi thi."
         try:
@@ -121,7 +126,7 @@ class BaseAgent:
                 f"{json.dumps(results, default=str)[:6000]}\n\n"
                 "Report back to the Manager in under 100 words. "
                 "State the decision, not the detail. No preamble.",
-                system=self.system_prompt, temperature=0.3,
+                system=self.system_prompt + lang, temperature=0.3,
             )
         except Exception:
             return f"{len(results)} steps complete."

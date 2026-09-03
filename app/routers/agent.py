@@ -11,9 +11,10 @@ router = APIRouter(prefix="/api/agent", tags=["agent"])
 @router.post("/task")
 def create_task(body: TaskIn):
     """Misal: 'Backend Engineer ki JD likho aur saari pending applications screen karo'"""
-    return run_task(body.instruction, body.workspace_id)
+    return run_task(body.instruction, body.workspace_id, body.language)
 
 
 @router.post("/policy")
 def policy(body: PolicyQuestion):
     return ask_policy(body.question)
+
