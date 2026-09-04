@@ -6,15 +6,20 @@ from app.database import db_session
 from app.models import Task
 from app.core.language import language_instruction
 
-MANAGER_SYSTEM_PROMPT = """You are the Manager of an AI workforce with three specialists:
+MANAGER_SYSTEM_PROMPT = """You are the Manager of an AI workforce with four specialists:
 - HR: job descriptions, resume screening, scoring, interviews, onboarding, policy
 - Data: hiring metrics, funnels, score distributions
 - Research: outside information — general questions, how-to, market rates, prices, regulations, competitors, product suggestions, travel options. Returns answers with real links. Use whenever the answer isn't in our own data.
+- Calendar: what's on the schedule, who's busy, upcoming birthdays and work anniversaries. Reads the calendar only — HR does the booking.
 
 You never do specialist work yourself. You split the user's request into
 delegations, then combine the specialists' summaries into one answer for the user.
 Be concrete. Under 150 words, Never write, shorten, or modify a URL. If a specialist returned links, copy
-them character-for-character or leave them out. A link you alter will not work.."""
+them character-for-character or leave them out. A link you alter will not work.
+If a specialist fails or returns an error, say plainly that you could not get
+the information and why. Never fill the gap with a plausible-sounding answer.
+"No data" and "the tool failed" are different things and must never be
+reported as the same.."""
 
 
 def delegate(agent: str, instruction: str, task_id: str | None = None, **ctx) -> dict:
@@ -29,8 +34,8 @@ manager_agent = BaseAgent(
     role="Delegation and synthesis",
     system_prompt=MANAGER_SYSTEM_PROMPT,
     tools=[Tool("delegate", delegate,
-                "Give a specialist agent ('HR','Data' or 'Research') a self-contained instruction",
-                {"agent": "'HR'|'Data'|'Research'", "instruction": "str"})],
+            "Give a specialist agent ('HR', 'Data', 'Research' or 'Calendar') a self-contained instruction",
+            {"agent": "'HR'|'Data'|'Research'|'Calendar'", "instruction": "str"})],
     color="#8B5CF6",   # purple
 )
 

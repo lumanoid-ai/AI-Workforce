@@ -249,3 +249,34 @@ def cancel_event(interviewer_email: str, event_id: str) -> bool:
     except Exception as e:
         print(f"[calendar] cancel fail: {e}")
         return False
+
+def list_events(email: str, days_ahead: int = 7) -> list[dict]:
+    """
+    Read upcoming events. Added for the Calendar agent — his booking
+    functions only write, so nothing could answer "what's coming up".
+    """
+    from googleapiclient.discovery import build
+
+    creds = get_credentials(email)
+    if not creds:
+        return []
+
+    now = datetime.utcnow()
+    result = build("calendar", "v3", credentials=creds).events().list(
+        calendarId="primary",
+        timeMin=now.isoformat() + "Z",
+        timeMax=(now + timedelta(days=days_ahead)).isoformat() + "Z",
+        singleEvents=True,
+        orderBy="startTime",
+        maxResults=50,
+    ).execute()
+
+    events = []
+    for item in result.get("items", []):
+        start = item["start"].get("dateTime") or item["start"].get("date")
+        events.append({
+            "title": item.get("summary", "(no title)"),
+            "start": start,
+            "attendees": [a.get("email", "") for a in item.get("attendees", [])],
+        })
+    return events

@@ -1,8 +1,10 @@
 from app.agents.data_agent import data_agent
 from app.agents.hr_agent import hr_agent
 from app.agents.research_agent import research_agent
+from app.agents.calendar_agent import calendar_agent
 
-AGENTS = {"HR": hr_agent, "Data": data_agent, "Research": research_agent}
+AGENTS = {"HR": hr_agent, "Data": data_agent,
+          "Research": research_agent, "Calendar": calendar_agent}
 
 
 def get_agent(name: str):
