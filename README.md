@@ -213,7 +213,7 @@ their trust.
 ---
 
 ## Team
-
+TEAM LEAD= **Syed Mahmood Ejaz**
 | Area | Owner |
 |---|---|
 | HR agent and platform backend | Ghous |
