@@ -10,3 +10,5 @@ data/resumes/*
 data/ics/*
 !data/*/.gitkeep
 data/hr.db 
+frontend/node_modules/
+frontend/dist/

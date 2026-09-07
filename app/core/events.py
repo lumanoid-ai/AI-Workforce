@@ -1,6 +1,8 @@
 """Event bus: har agent action DB mein bhi jata hai aur live subscribers ko bhi."""
 import asyncio
 from typing import Any
+import contextvars
+current_workspace = contextvars.ContextVar("current_workspace", default=None)
 
 from app.database import db_session
 from app.models import Event
@@ -34,6 +36,7 @@ def emit(task_id: str | None, agent: str, type: str, message: str,
         evt = {
             "id": row.id, "task_id": task_id, "agent": agent, "type": type,
             "message": message, "payload": payload,
+            "workspace_id": current_workspace.get(),
             "created_at": row.created_at.isoformat(),
         }
     finally:

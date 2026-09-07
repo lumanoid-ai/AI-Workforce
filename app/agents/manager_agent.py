@@ -5,6 +5,8 @@ from app.core.llm import llm_text
 from app.database import db_session
 from app.models import Task
 from app.core.language import language_instruction
+from app.core.events import current_workspace
+
 
 MANAGER_SYSTEM_PROMPT = """You are the Manager of an AI workforce with four specialists:
 - HR: job descriptions, resume screening, scoring, interviews, onboarding, policy
@@ -43,6 +45,7 @@ manager_agent = BaseAgent(
 def run_task(instruction: str, workspace_id: str | None = None,
              language:str = "en") -> dict:
     """Entry point: user -> Manager -> specialists -> user."""
+    current_workspace.set(workspace_id)
     db = db_session()
     try:
         task = Task(instruction=instruction, workspace_id=workspace_id)
