@@ -61,7 +61,7 @@ def create_application(job_id: str, email: str, name: str, resume_path: str,
         send_template(email, "application_received", {
             "candidate_name": name or "there", "job_title": job.title,
             "application_id": app_row.id})
-        emit(None, "HR", "tool_call", f"Nayi application: {email} -> {job.title}",
+        emit(None, "HR", "tool_call", f"New application: {email} -> {job.title}",
              {"application_id": app_row.id})
         return {"application_id": app_row.id, "status": "received"}
     finally:

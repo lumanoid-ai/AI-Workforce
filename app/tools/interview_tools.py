@@ -261,7 +261,7 @@ def schedule_interview(application_id: str, meeting_link: str = "",
 
         slot = find_free_slot(job.id)
         if not slot:
-            emit(task_id, "HR", "error", "Koi free interview slot nahi bacha")
+            emit(task_id, "HR", "error", "No free interview slots left")
             return {"error": "no_slot", "message": "Admin ko slots add karne kehna"}
 
         slot_row = db.get(InterviewSlot, slot.id)

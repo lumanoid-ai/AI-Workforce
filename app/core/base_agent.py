@@ -82,12 +82,12 @@ class BaseAgent:
             task_id: str | None = None) -> dict:
         context = context or {}
         self._language = context.get("language")
-        emit(task_id, self.name, "thinking", f"Instruction mili: {instruction[:120]}")
+        emit(task_id, self.name, "thinking", f"Working on: {instruction[:120]}")
 
         try:
             steps = self.plan(instruction, context)
         except Exception as e:
-            emit(task_id, self.name, "error", f"Plan banane mein masla: {e}")
+            emit(task_id, self.name, "error", f"Could not plan the work: {e}")
             steps = []
 
         if steps:
@@ -111,7 +111,7 @@ class BaseAgent:
             results.append({"tool": tool_name, "result": out})
 
         summary = self.summarise(instruction, results)
-        emit(task_id, self.name, "done", summary, {"artifacts": artifacts})
+        emit(task_id, self.name, "agent_done", summary, {"artifacts": artifacts})
         return {"agent": self.name, "summary": summary, "results": results, "artifacts": artifacts}
 
     # ---------- summary ----------
@@ -119,7 +119,7 @@ class BaseAgent:
         lang = language_instruction(getattr(self, "_language", None))
 
         if not results:
-            return "Koi tool chalane ki zaroorat nahi thi."
+            return "No tools were needed for this."
         try:
             return llm_text(
                 f"Instruction: {instruction}\n\nTool results (JSON):\n"

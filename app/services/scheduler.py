@@ -17,7 +17,7 @@ scheduler = BackgroundScheduler(timezone="UTC")
 def job_screen_pending():
     res = screen_pending(limit=10)
     if res["processed"]:
-        emit(None, "HR", "tool_call", f"{len(res['processed'])} applications auto-screen hui")
+        emit(None, "HR", "tool_call", f"{len(res['processed'])} applications auto-screened")
 
 
 def job_sync_external():
@@ -34,7 +34,7 @@ def job_sync_external():
     for q in settings.sync_queries:
         r = import_external_jobs(ws_id, q, limit=20)
         emit(None, "Manager", "tool_call",
-             f"Job sync '{q}': {r['imported']} nayi jobs mili", r)
+            f"Job sync '{q}': {r['imported']} new jobs found", r)
 
 
 def job_interview_reminders():

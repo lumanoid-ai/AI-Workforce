@@ -58,6 +58,8 @@ const I18N = {
       connLive: "Backend connected", connDown: "Backend offline",
       sendFail: "Could not reach the backend. Check the server is running on port 8000.",
       finalDoc: "Final answer", noPreview: "This document has no text preview.",
+      history: "Earlier questions", viewingOld: "Viewing an earlier answer",
+      backToLatest: "Back to the latest", askedNothing: "No question yet",
     },
     status: { off: "available", on: "working", done: "finished" },
     roles: {
@@ -117,6 +119,8 @@ const I18N = {
       connLive: "Backend juRa hua", connDown: "Backend band hai",
       sendFail: "Backend tak nahi pohanch sake. Server port 8000 par chal raha hai ya nahi dekhein.",
       finalDoc: "Aakhri jawab", noPreview: "Is document ka text preview mojood nahi.",
+      history: "Pichle sawalat", viewingOld: "Pichla jawab dekh rahe hain",
+      backToLatest: "Naye par wapas", askedNothing: "Abhi koi sawal nahi",
     },
     status: { off: "farigh", on: "kaam kar rahe hain", done: "mukammal" },
     roles: {
@@ -176,6 +180,8 @@ const I18N = {
       connLive: "后端已连接", connDown: "后端未连接",
       sendFail: "无法连接后端，请确认服务器正在 8000 端口运行。",
       finalDoc: "最终答复", noPreview: "此文件暂无文本预览。",
+      history: "以往的提问", viewingOld: "正在查看以往的答复",
+      backToLatest: "返回最新", askedNothing: "尚无提问",
     },
     status: { off: "空闲", on: "进行中", done: "已完成" },
     roles: {
@@ -281,6 +287,22 @@ const ROLE_WORDS = {
   Research: "{research}", Calendar: "{scheduler}",
 };
 
+/* the backend logs raw tool signatures; say what they mean instead */
+const TOOL_WORDS = {
+  web_search: "searching the web",
+  create_jd: "writing the job description",
+  score_candidates: "scoring the candidates",
+  parse_resume: "reading the resumes",
+  screening_questions: "preparing screening questions",
+  book_interview: "booking the interview",
+  send_email: "sending an email",
+  hiring_metrics: "pulling the hiring numbers",
+  run_sql: "querying the dataset",
+  list_events: "checking the calendar",
+  free_busy: "checking who's free",
+  delegate: "handing work to a specialist",
+};
+
 function normalize(ev) {
   const agent = AGENT_MAP[(ev.agent || "").toLowerCase()] || "manager";
   const p = ev.payload || {};
@@ -292,13 +314,24 @@ function normalize(ev) {
   if (type === "artifact") {
     payload = { title: ev.message || "Document", body: [], id: p.id };
   }
-  if (type === "done" && agent !== "manager") {
-    type = "tool_call";           // a specialist finishing is not the task finishing
+  /* only run_task's "done" ends a run; base_agent sends "agent_done" */
+  if (type === "agent_done" || (type === "done" && agent !== "manager")) {
+    type = "tool_call";
   }
 
+  /* only rewrite role words in the backend's own status lines — never in
+     answer text or document titles, where "Data Analyst" is real content */
+  
   let message = ev.message || "";
-  for (const [word, token] of Object.entries(ROLE_WORDS)) {
-    message = message.replace(new RegExp(`\\b${word}\\b`, "g"), token);
+  if (ev.type !== "done" && ev.type !== "agent_done" && ev.type !== "artifact") {
+    for (const [word, token] of Object.entries(ROLE_WORDS)) {
+      message = message.replace(new RegExp(`\\b${word}\\b`, "g"), token);
+    }
+  }
+
+  if (ev.type === "tool_call") {
+    const tool = (p.tool || String(ev.message || "").split("(")[0] || "").trim();
+    message = TOOL_WORDS[tool] || (tool ? tool.replace(/_/g, " ") : message);
   }
 
   return { ...ev, agent, type, payload, message };
@@ -323,6 +356,7 @@ function makeLiveHub() {
           try { const ev = normalize(JSON.parse(e.data)); listeners.forEach((l) => l(ev)); } catch (err) {}
         };
       }
+   
       return () => listeners.delete(fn);
     },
     async sendTask({ instruction, workspace_id, language, names, team_name }) {
@@ -584,6 +618,31 @@ const CSS = `
 .aw-rule { height:0.5px; background:#C9C6BE; margin:16px 0; }
 .aw-open p { font-size:14.5px; line-height:1.7; margin:0 0 10px; max-width:62ch;
              white-space:pre-wrap; }
+.aw-open p.aw-bullet { padding-left:20px; position:relative; margin-bottom:5px; }
+.aw-open p.aw-bullet::before { content:'\u2022'; position:absolute; left:5px; color:#8A857C; }
+.aw-open p.aw-h { margin-top:18px; margin-bottom:6px; }
+.aw-open a { color:#2F5AA8; text-decoration:underline; text-underline-offset:2px; }
+.aw-open a:hover { color:#1B3C7A; }
+.aw-print p.aw-bullet { padding-left:14pt; }
+
+/* ---------- history ---------- */
+.aw-hist { flex:0 0 auto; margin-bottom:14px; padding-bottom:14px;
+           border-bottom:0.5px solid ${T.line}; display:flex; flex-direction:column; gap:5px;
+           max-height:34vh; overflow-y:auto; }
+.aw-histitem { font:inherit; font-size:12px; line-height:1.4; text-align:left; cursor:pointer;
+               background:none; border:0.5px solid transparent; border-radius:8px;
+               padding:7px 9px; color:${T.text3};
+               display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+               overflow:hidden;
+               transition:color .25s ease, border-color .25s ease, background .25s ease; }
+.aw-histitem:hover { color:${T.text2}; border-color:${T.line}; }
+.aw-histitem.on { color:${T.text}; border-color:rgba(139,92,246,.55);
+                  background:rgba(139,92,246,.11); }
+.aw-histitem i { font-style:normal; color:#8B5CF6; }
+.aw-oldbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+             font-size:11.5px; color:#FCD34D; margin-bottom:12px;
+             background:rgba(245,158,11,.10); border:0.5px solid rgba(245,158,11,.34);
+             border-radius:9px; padding:7px 10px; }
 .aw-x { position:absolute; top:18px; right:18px; font-size:12px; color:#6B6862;
         background:none; border:0.5px solid #C9C6BE; border-radius:7px; padding:5px 12px;
         cursor:pointer; font-family:inherit; }
@@ -648,7 +707,25 @@ const CSS = `
   .aw-print .aw-pmeta { font-size:9pt; color:#666; margin:0 0 12pt; }
   .aw-print p { font-size:11pt; line-height:1.6; margin:0 0 6pt; white-space:pre-wrap; }
   .aw-print hr { border:none; border-top:0.5pt solid #bbb; margin:14pt 0; }
-  .aw-print section { page-break-inside:avoid; margin-bottom:18pt; }
+  .aw-print section { break-inside:auto; page-break-inside:auto; margin-bottom:18pt; }
+  .aw-print h2 { break-after:avoid; page-break-after:avoid; }
+  html, body, #root { height:auto !important; min-height:0 !important;
+                      background:#fff !important; }
+  .aw-print { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .aw-print .aw-phead { display:flex; align-items:center; gap:7pt;
+                        margin:0 0 12pt; padding-bottom:7pt;
+                        border-bottom:0.75pt solid #333;
+                        font-size:11.5pt; font-weight:600; letter-spacing:-0.01em; }
+  .aw-print .aw-pq { font-size:10.5pt; line-height:1.5; color:#222;
+                     margin:0 0 16pt; padding:9pt 11pt; background:#F2F0EC;
+                     border-left:2pt solid #8B5CF6; }
+  .aw-print .aw-pqlabel { display:block; font-size:8.5pt; text-transform:uppercase;
+                          letter-spacing:0.06em; color:#777; margin-bottom:3pt; }
+  .aw-print a { color:#000; text-decoration:underline; }
+  .aw-print a::after { content:" (" attr(href) ")"; font-size:8.5pt; color:#555;
+                       text-decoration:none; word-break:break-all; }
+  @page { margin:14mm; }
+
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -671,6 +748,9 @@ const makeTeam = (name, names) => ({
   feed: [], docs: [], trail: [],
   focus: null, running: false, finished: false,
   lastHandoff: null,
+  instruction: "",      // the question this run is answering
+  history: [],          // finished runs, oldest first
+  viewing: null,        // index into history, or null for the current run
 });
 
 function reducer(state, action) {
@@ -684,15 +764,28 @@ function reducer(state, action) {
       return patch(action.id, (t) => ({ ...t, name: action.name, names: action.names }));
 
     case "START":
-      return patch(action.id, (t) => ({
-        ...t, feed: [], docs: [], trail: ["manager"], status: blankStatus(),
-        focus: null, running: true, finished: false, lastHandoff: null,
-      }));
+      return patch(action.id, (t) => {
+        /* park the run that just finished before clearing the board */
+        const history = t.feed.length
+          ? [...t.history, {
+              instruction: t.instruction, at: Date.now(),
+              feed: t.feed, docs: t.docs, trail: t.trail,
+              status: t.status, focus: t.focus,
+            }]
+          : t.history;
+        return {
+          ...t, history, instruction: action.instruction || "",
+          feed: [], docs: [], trail: ["manager"], status: blankStatus(),
+          focus: null, running: true, finished: false, lastHandoff: null,
+          viewing: null,
+        };
+      });
 
     case "RESET":
       return patch(action.id, (t) => ({
         ...t, feed: [], docs: [], trail: [], status: blankStatus(),
         focus: null, running: false, finished: false, lastHandoff: null,
+        instruction: "", viewing: null,
       }));
 
     case "FAIL":
@@ -701,8 +794,20 @@ function reducer(state, action) {
         feed: [...t.feed, { message: action.message, type: "error" }],
       }));
 
+    case "VIEW":
+      return patch(action.id, (t) => ({ ...t, viewing: action.index }));
+
     case "FOCUS":
-      return patch(action.id, (t) => ({ ...t, focus: action.agent }));
+      return patch(action.id, (t) => {
+        if (t.viewing != null) {
+          return {
+            ...t,
+            history: t.history.map((h, i) =>
+              i === t.viewing ? { ...h, focus: action.agent } : h),
+          };
+        }
+        return { ...t, focus: action.agent };
+      });
 
     case "EVENT": {
       const ev = action.ev;
@@ -731,6 +836,7 @@ function reducer(state, action) {
           next.docs = [...t.docs, {
             title: fill(src.title, n),
             body: (src.body || []).map((b) => fill(b, n)),
+            id: ev.payload?.id,
             agent: ev.agent, final: !!ev.payload?.final,
           }];
         }
@@ -793,6 +899,47 @@ function allToText(team, t, md) {
 }
 
 /* ============================================================
+   7b. MARKDOWN RENDERING
+   The model answers in Markdown. Render bold, bullets, headings
+   and real links instead of showing the raw syntax.
+   ============================================================ */
+function inline(text) {
+  const parts = String(text)
+    .split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g)
+    .filter(Boolean);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (link) {
+      return (
+        <a key={i} href={link[2]} target="_blank" rel="noopener noreferrer">
+          {link[1]}
+        </a>
+      );
+    }
+    return <React.Fragment key={i}>{part}</React.Fragment>;
+  });
+}
+
+function RichText({ text }) {
+  return String(text).split("\n").map((line, i) => {
+    const s = line.trim();
+    if (!s) return null;
+    if (/^#{1,6}\s/.test(s)) {
+      return <p key={i} className="aw-h"><strong>{inline(s.replace(/^#{1,6}\s+/, ""))}</strong></p>;
+    }
+    const bullet = /^[*-]\s+/.test(s);
+    return (
+      <p key={i} className={bullet ? "aw-bullet" : ""}>
+        {inline(bullet ? s.replace(/^[*-]\s+/, "") : s)}
+      </p>
+    );
+  });
+}
+
+/* ============================================================
    8. APP
    ============================================================ */
 const INTRO_MS = 6800;
@@ -811,6 +958,7 @@ export default function AIWorkforce() {
   const [fly, setFly] = useState(null);
   const [openDoc, setOpenDoc] = useState(null);
   const [printJob, setPrintJob] = useState(null);
+  const [docText, setDocText] = useState(null);
 
   const [conn, setConn] = useState("down");           // live | down
   const [calEmail, setCalEmail] = useState("");
@@ -886,11 +1034,31 @@ export default function AIWorkforce() {
 
   /* auto-open the final document */
   useEffect(() => {
+    if (team?.viewing != null) return;          // don't pop docs while browsing history
     const last = team?.docs?.[team.docs.length - 1];
     if (last?.final) { const id = setTimeout(() => setOpenDoc(last), 700); return () => clearTimeout(id); }
-  }, [team?.docs]);
+  }, [team?.docs, team?.viewing]);
 
-  useEffect(() => { if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight; }, [team?.feed]);
+  useEffect(() => { if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight; },
+            [team?.feed, team?.viewing]);
+
+
+    /* documents arrive as an id only; pull the text when one is opened */
+  useEffect(() => {
+    setDocText(null);
+    if (!openDoc || openDoc.body.length || !openDoc.id) return;
+    let alive = true;
+    fetch(`${API_BASE}/api/admin/artifacts/${openDoc.id}`,
+          { headers: { "X-Admin-Key": ADMIN_KEY } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!alive || !j) return;
+        setDocText(typeof j.content === "string"
+          ? j.content : JSON.stringify(j.content, null, 2));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [openDoc]);
 
   /* printing: render the sheet, let the browser print it, then clear */
   useEffect(() => {
@@ -907,8 +1075,10 @@ export default function AIWorkforce() {
 
   const dlDoc = (doc, kind) => {
     if (kind === "pdf") {
+      const run = team ? (team.viewing != null ? team.history[team.viewing] : team) : null;
       setPrintJob({
         title: doc.title, subtitle: team?.name || "",
+        question: run?.instruction || "",
         sections: [{ title: doc.title, author: team?.names[doc.agent], body: doc.body }],
       });
       return;
@@ -919,18 +1089,21 @@ export default function AIWorkforce() {
   };
 
   const dlAll = (kind) => {
-    if (!team || !team.docs.length) return;
+    const run = team ? (team.viewing != null ? team.history[team.viewing] : team) : null;
+    if (!run || !run.docs.length) return;
     const label = team.name || "AI Workforce";
     if (kind === "pdf") {
       setPrintJob({
         title: label, subtitle: label,
-        sections: team.docs.map((d) => ({ title: d.title, author: team.names[d.agent], body: d.body })),
+        question: run?.instruction || "",
+        sections: run.docs.map((d) => ({ title: d.title, author: team.names[d.agent], body: d.body })),
       });
       return;
     }
     const md = kind === "md";
     saveBlob(`${safeName(label)}.${md ? "md" : "txt"}`,
-             allToText(team, t, md), md ? "text/markdown" : "text/plain");
+             allToText({ ...team, docs: run.docs }, t, md),
+             md ? "text/markdown" : "text/plain");
   };
 
   /* ---------- calendar ---------- */
@@ -1025,10 +1198,12 @@ export default function AIWorkforce() {
   const start = () => {
     if (!team || team.running || !input.trim()) return;
     setOpenDoc(null);
-    dispatch({ type: "START", id: team.id });
+    dispatch({ type: "START", id: team.id, instruction: input });
+    const sent = input;
+    setInput("");
     Promise.resolve(
       sourceFor(team.id).sendTask({
-        instruction: input, workspace_id: team.id, language: lang,
+        instruction: sent, workspace_id: team.id, language: lang,
         names: team.names, team_name: team.name || null,
       })
     ).catch(() => dispatch({ type: "FAIL", id: team.id, message: t.ui.sendFail }));
@@ -1123,9 +1298,15 @@ export default function AIWorkforce() {
   }
 
   /* ---------- main ---------- */
-  const focusP = team?.focus ? byKey[team.focus] : null;
-  const focusMsg = team ? [...team.feed].reverse()[0]?.message : null;
-  const stageDocs = team && team.focus ? team.docs.filter((d) => d.agent === team.focus) : [];
+  /* everything below reads `view`: either the live run or an archived one */
+  const view = team ? (team.viewing != null ? team.history[team.viewing] : team) : null;
+  const isOld = !!team && team.viewing != null;
+
+  const focusP = view?.focus ? byKey[view.focus] : null;
+  const focusMsg = view ? [...view.feed].reverse()[0]?.message : null;
+  const stageDocs = view && view.focus ? view.docs.filter((d) => d.agent === view.focus) : [];
+    /* the final answer is already a document; the feed shows progress only */
+  const feedLines = view ? view.feed.filter((f) => f.type !== "done") : [];
 
   return (
     <>
@@ -1168,7 +1349,7 @@ export default function AIWorkforce() {
             </button>
           </div>
           {PEOPLE.map((p) => {
-            const st = team?.status[p.key] || "off";
+            const st = view?.status[p.key] || "off";
             return (
               <button key={p.key} className="aw-person"
                       onClick={() => team && dispatch({ type: "FOCUS", id: team.id, agent: p.key })}>
@@ -1208,10 +1389,20 @@ export default function AIWorkforce() {
 
         {/* CENTRE — path bar + one person's page */}
         <main className="aw-col aw-main" style={{ position: "relative" }}>
+          {isOld && (
+            <div className="aw-oldbar">
+              <span>{t.ui.viewingOld}</span>
+              <button className="aw-dlsm" style={{ marginLeft: "auto" }}
+                      onClick={() => { setOpenDoc(null);
+                        dispatch({ type: "VIEW", id: team.id, index: null }); }}>
+                {t.ui.backToLatest}
+              </button>
+            </div>
+          )}
           <div className="aw-path" ref={pathRef}>
             {PEOPLE.map((p, i) => {
-              const st = team?.status[p.key] || "off";
-              const isFocus = team?.focus === p.key;
+              const st = view?.status[p.key] || "off";
+              const isFocus = view?.focus === p.key;
               return (
                 <React.Fragment key={p.key}>
                   {i > 0 && <div className="aw-chiplink" />}
@@ -1244,15 +1435,15 @@ export default function AIWorkforce() {
           </div>
 
           {focusP ? (
-            <div className="aw-stage" key={team.id + focusP.key}
+            <div className="aw-stage" key={team.id + focusP.key + String(team.viewing)}
                  style={{ background: `rgba(${focusP.rgb},.09)`,
                           border: `0.5px solid rgba(${focusP.rgb},.34)`, color: focusP.hex }}>
-              {team.status[focusP.key] === "on" && <span className="aw-scan" />}
+              {view.status[focusP.key] === "on" && <span className="aw-scan" />}
               <h2 style={{ color: focusP.tint }}>{team.names[focusP.key]}</h2>
               <div className="aw-stagerole">{t.roles[focusP.key]}</div>
               <div className="aw-stagemsg" style={{ color: T.text }}>
                 {focusMsg}
-                {team.status[focusP.key] === "on" &&
+                {view.status[focusP.key] === "on" &&
                   <span className="aw-dots" style={{ color: focusP.tint }}><i /><i /><i /></span>}
               </div>
               {stageDocs.length > 0 && (
@@ -1286,18 +1477,18 @@ export default function AIWorkforce() {
           <div className="aw-shelf">
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11.5, color: T.text3 }}>{t.ui.finished}</span>
-              {team && team.docs.length > 0 && (
+              {view && view.docs.length > 0 && (
                 <span style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
                   <button className="aw-dlsm" onClick={() => dlAll("pdf")}>{t.ui.dlAll} · PDF</button>
                   <button className="aw-dlsm" onClick={() => dlAll("md")}>Markdown</button>
                 </span>
               )}
             </div>
-            {!team || team.docs.length === 0 ? (
+            {!view || view.docs.length === 0 ? (
               <div style={{ fontSize: 12, color: T.text4 }}>{t.ui.emptyShelf}</div>
             ) : (
               <div className="aw-doclist">
-                {team.docs.map((d, i) => (
+                {view.docs.map((d, i) => (
                   <button key={i} className="aw-doc" onClick={() => setOpenDoc(d)}>
                     <div style={{ fontSize: 12, lineHeight: 1.25 }}>{d.title}</div>
                     <div style={{ height: "0.5px", background: "#C9C6BE", margin: "8px 0 5px" }} />
@@ -1325,9 +1516,11 @@ export default function AIWorkforce() {
               <h3>{openDoc.title}</h3>
               <div style={{ fontSize: 12.5, color: "#6B6862" }}>{team?.names[openDoc.agent]}</div>
               <div className="aw-rule" />
-              {openDoc.body.length
-                ? openDoc.body.map((line, i) => <p key={i}>{line}</p>)
-                : <p style={{ color: "#6B6862" }}>{t.ui.noPreview}</p>}
+             {openDoc.body.length
+                ? openDoc.body.map((line, i) => <RichText key={i} text={line} />)
+                : docText
+                  ? <RichText text={docText} />
+                  : <p style={{ color: "#6B6862" }}>{t.ui.noPreview}</p>} 
               <div className="aw-rule" />
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <span style={{ fontSize: 11.5, color: "#6B6862" }}>{t.ui.download}</span>
@@ -1341,14 +1534,39 @@ export default function AIWorkforce() {
 
         {/* RIGHT — feed */}
         <aside className="aw-col aw-feed">
+          {team && (team.history.length > 0 || team.instruction) && (
+            <>
+              <div className="aw-label">{t.ui.history}</div>
+              <div className="aw-hist">
+                {team.history.map((h, i) => (
+                  <button key={i}
+                          className={"aw-histitem" + (team.viewing === i ? " on" : "")}
+                          title={h.instruction}
+                          onClick={() => { setOpenDoc(null);
+                            dispatch({ type: "VIEW", id: team.id, index: i }); }}>
+                    {h.instruction || t.ui.askedNothing}
+                  </button>
+                ))}
+                {team.instruction && (
+                  <button className={"aw-histitem" + (team.viewing === null ? " on" : "")}
+                          title={team.instruction}
+                          onClick={() => { setOpenDoc(null);
+                            dispatch({ type: "VIEW", id: team.id, index: null }); }}>
+                    {team.running && <i>• </i>}{team.instruction}
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+
           <div className="aw-label">{t.ui.feed}</div>
           <div ref={feedRef} style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto" }}>
-            {!team || team.feed.length === 0 ? (
+            {feedLines.length === 0 ? (
               <div style={{ fontSize: 12.5, color: T.text4 }}>{t.ui.emptyFeed}</div>
             ) : (
-              team.feed.map((f, i) => (
+              feedLines.map((f, i) => (
                 <div key={i} className={"aw-feedline"
-                       + (i === team.feed.length - 1 ? " now" : "")
+                       + (i === feedLines.length - 1 ? " now" : "")
                        + (f.type === "error" ? " err" : "")}>
                   {f.message}
                 </div>
@@ -1363,15 +1581,25 @@ export default function AIWorkforce() {
     <div className="aw-print" aria-hidden="true">
       {printJob && (
         <>
+          <div className="aw-phead">
+            <Mark size={20} />
+            <span>AI Workforce</span>
+          </div>
           <h1>{printJob.title}</h1>
           <div className="aw-pmeta">
             {printJob.subtitle ? printJob.subtitle + " · " : ""}{new Date().toLocaleDateString()}
           </div>
+          {printJob.question && (
+            <div className="aw-pq">
+              <span className="aw-pqlabel">Question asked</span>
+              {printJob.question}
+            </div>
+          )}
           {printJob.sections.map((sec, i) => (
             <section key={i}>
               <h2>{sec.title}</h2>
               <div className="aw-pmeta">{t.ui.preparedBy}: {sec.author}</div>
-              {sec.body.map((line, j) => <p key={j}>{line}</p>)}
+              {sec.body.map((line, j) => <RichText key={j} text={line} />)}
               {i < printJob.sections.length - 1 && <hr />}
             </section>
           ))}

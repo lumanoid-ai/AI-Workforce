@@ -1,4 +1,5 @@
 """Agent 1 — Manager. User se sirf yeh baat karta hai; kaam delegate karta hai."""
+import re
 from app.core.base_agent import BaseAgent, Tool
 from app.core.events import emit
 from app.core.llm import llm_text
@@ -18,6 +19,8 @@ You never do specialist work yourself. You split the user's request into
 delegations, then combine the specialists' summaries into one answer for the user.
 Be concrete. Under 150 words, Never write, shorten, or modify a URL. If a specialist returned links, copy
 them character-for-character or leave them out. A link you alter will not work.
+Never put internal identifiers, UUIDs, task ids or artifact ids in your answer.
+The user does not know what they are. Refer to work by name instead.
 If a specialist fails or returns an error, say plainly that you could not get
 the information and why. Never fill the gap with a plausible-sounding answer.
 "No data" and "the tool failed" are different things and must never be
@@ -26,7 +29,7 @@ reported as the same.."""
 
 def delegate(agent: str, instruction: str, task_id: str | None = None, **ctx) -> dict:
     from app.agents.registry import get_agent
-    emit(task_id, "Manager", "handoff", f"{agent} ko de raha hoon: {instruction[:100]}",
+    emit(task_id, "Manager", "handoff", f"Handing to {agent}: {instruction[:100]}",
          {"to": agent})
     return get_agent(agent).run(instruction, context=ctx, task_id=task_id)
 
@@ -69,6 +72,16 @@ def run_task(instruction: str, workspace_id: str | None = None,
         temperature=0.4,
     ) if result["results"] else result["summary"]
 
+        # the model summarises; we append each specialist's own words verbatim
+    # so nothing (least of all the links) can be dropped in synthesis
+    parts = []
+    for r in result["results"]:
+        sub = r.get("result") or {}
+        if sub.get("summary"):
+            parts.append(f"**{sub.get('agent', '')}**\n{sub['summary']}")
+    if parts:
+        final = final + "\n\n---\n\n" + "\n\n".join(parts)
+
     db = db_session()
     try:
         t = db.get(Task, task_id)
@@ -78,5 +91,11 @@ def run_task(instruction: str, workspace_id: str | None = None,
     finally:
         db.close()
 
-    emit(task_id, "Manager", "done", final[:200])
+    # specialists sometimes report internal ids; the user has no use for them
+    final = re.sub(r"(?im)^.*\b(?:artifact|task)\s*id\b.*$\n?", "", final)
+    final = re.sub(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b",
+                   "", final)
+    final = re.sub(r"\*\*\s*\*\*", "", final)                    # empty bold left behind
+    final = re.sub(r"(?i)\s*(?:review|see)[^.\n]*here:\s*\.?", "", final)
+    emit(task_id, "Manager", "done", final)
     return {"task_id": task_id, "answer": final, "artifacts": result["artifacts"]}

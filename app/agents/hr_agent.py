@@ -28,7 +28,7 @@ def _handoff(agent: str, question: str, task_id: str | None = None) -> dict:
     """HR -> Data Analyst wala handoff. Yahi wo lamha hai jab team lagti hai, menu nahi."""
     from app.agents.registry import get_agent
     from app.core.events import emit
-    emit(task_id, "HR", "handoff", f"{agent} se pooch raha hoon: {question}",
+    emit(task_id, "HR", "handoff", f"Asking {agent}: {question}",
          {"to": agent, "question": question})
     return get_agent(agent).run(question, task_id=task_id)
 
