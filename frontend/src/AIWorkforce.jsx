@@ -229,8 +229,8 @@ const fill = (s, names) =>
    Live: one SSE connection, events routed by ev.workspace_id.
    ============================================================ */
 const USE_MOCK = false;
-const API_BASE = "http://localhost:8000";
-const ADMIN_KEY = "change-me-admin-key";   // must match ADMIN_API_KEY in the backend .env
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY || "change-me-admin-key";  // must match ADMIN_API_KEY in the backend .env
 
 const SCRIPT = [
   { id: "s1",  at: 400,   agent: "manager",   type: "thinking" },
